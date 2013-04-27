@@ -18,51 +18,65 @@
 
 namespace lowtone\buddypress\members\grouptabs {
 
-	use lowtone\net\URL;
+	use lowtone\content\packages\Package,
+		lowtone\net\URL;
 
-	add_filter("bp_ajax_querystring", function($query, $object) {
-		if ("members" != $object)
-			return $query;
+	// Includes
+	
+	if (!include_once WP_PLUGIN_DIR . "/lowtone-content/lowtone-content.php") 
+		return trigger_error("Lowtone Content plugin is required", E_USER_ERROR) && false;
 
-		if (is_null($scope = $_REQUEST["scope"] ?: $_COOKIE["bp-members-scope"]))
-			return $query;
+	Package::init(array(
+			Package::INIT_PACKAGES => array("lowtone"),
+			Package::INIT_MERGED_PATH => __NAMESPACE__,
+			Package::INIT_SUCCESS => function() {
 
-		if (!preg_match("#group_(\d+)#", $scope, $matches))
-			return $query;
+				add_filter("bp_ajax_querystring", function($query, $object) {
+					if ("members" != $object)
+						return $query;
 
-		$group_id = $matches[1];
+					if (is_null($scope = $_REQUEST["scope"] ?: $_COOKIE["bp-members-scope"]))
+						return $query;
 
-		if (!is_numeric($group_id))
-			return $query;
+					if (!preg_match("#group_(\d+)#", $scope, $matches))
+						return $query;
 
-		if (!is_array($query))
-			parse_str($query, $query);
+					$group_id = $matches[1];
 
-		$include = $query["include"];
+					if (!is_numeric($group_id))
+						return $query;
 
-		if (is_string("include"))
-			$include = explode(",", $include);
+					if (!is_array($query))
+						parse_str($query, $query);
 
-		global $wpdb, $bp;
+					$include = $query["include"];
 
-		$q = "SELECT user_id FROM " . $bp->groups->table_name_members . " WHERE `is_confirmed`=1 AND `group_id`=%d";
+					if (is_string("include"))
+						$include = explode(",", $include);
 
-		if (is_null($result = $wpdb->get_results($wpdb->prepare($q, (int) $group_id))))
-			return $query;
+					global $wpdb, $bp;
 
-		$query["include"] = implode(",", array_filter(array_unique(array_merge($include, array_map(function($row) {return $row->user_id;}, $result)))));
+					$q = "SELECT user_id FROM " . $bp->groups->table_name_members . " WHERE `is_confirmed`=1 AND `group_id`=%d";
 
-		return $query;
-	}, 9999, 2);
+					if (is_null($result = $wpdb->get_results($wpdb->prepare($q, (int) $group_id))))
+						return $query;
 
-	add_action("bp_members_directory_member_types", function() {
-		bp_has_groups();
+					$query["include"] = implode(",", array_filter(array_unique(array_merge($include, array_map(function($row) {return $row->user_id;}, $result)))));
 
-		while (bp_groups()) {
-			bp_the_group();
-			
-			echo sprintf('<li id="members-group_%s" class="members-group"><a href="%s">%s <span>%s</span></a></li>', $GLOBALS["groups_template"]->group->id, URL::fromString(bp_get_members_directory_permalink())->fragment(bp_get_group_slug()), bp_get_group_name(), bp_get_group_total_members());
-		} 
-	});
+					return $query;
+				}, 9999, 2);
+
+				add_action("bp_members_directory_member_types", function() {
+					bp_has_groups();
+
+					while (bp_groups()) {
+						bp_the_group();
+						
+						echo sprintf('<li id="members-group_%s" class="members-group"><a href="%s">%s <span>%s</span></a></li>', $GLOBALS["groups_template"]->group->id, URL::fromString(bp_get_members_directory_permalink())->fragment(bp_get_group_slug()), bp_get_group_name(), bp_get_group_total_members());
+					} 
+				});
+
+			}
+		));
 
 }
